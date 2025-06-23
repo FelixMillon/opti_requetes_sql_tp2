@@ -12,16 +12,14 @@ WHERE title_type = 'movie' AND start_year = 1950;
 ```sql
 | QUERY PLAN |
 | :--- |
-| Gather  \(cost=1000.00..248242.17 rows=733 width=84\) \(actual time=11.236..504.468 rows=2009 loops=1\) |
-|   Workers Planned: 2 |
-|   Workers Launched: 2 |
-|   -&gt;  Parallel Seq Scan on title\_basics  \(cost=0.00..247168.87 rows=305 width=84\) \(actual time=10.678..468.861 rows=670 loops=3\) |
-|         Filter: \(\(\(title\_type\)::text = 'movie'::text\) AND \(start\_year = 1950\)\) |
-|         Rows Removed by Filter: 3910950 |
-| Planning Time: 0.110 ms |
-| JIT: |
-|   Functions: 6 |
-|   Options: Inlining false, Optimization false, Expressions true, Deforming true |
-|   Timing: Generation 1.598 ms \(Deform 0.773 ms\), Inlining 0.000 ms, Optimization 1.152 ms, Emission 15.145 ms, Total 17.895 ms |
-| Execution Time: 504.959 ms |
+| Bitmap Heap Scan on title\_basics  \(cost=128.63..37010.34 rows=733 width=84\) \(actual time=0.690..6.011 rows=2009 loops=1\) |
+|   Recheck Cond: \(start\_year = 1950\) |
+|   Filter: \(\(title\_type\)::text = 'movie'::text\) |
+|   Rows Removed by Filter: 6268 |
+|   Heap Blocks: exact=3275 |
+|   -&gt;  Bitmap Index Scan on idx\_title\_basics\_start\_year  \(cost=0.00..128.45 rows=11735 width=0\) \(actual time=0.341..0.342 rows=8277 loops=1\) |
+|         Index Cond: \(start\_year = 1950\) |
+| Planning Time: 0.108 ms |
+| Execution Time: 6.096 ms |
+
 ```
