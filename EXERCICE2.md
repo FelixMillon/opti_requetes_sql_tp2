@@ -9,7 +9,7 @@ WHERE title_type = 'movie' AND start_year = 1950;
 ```
 
 * Output:
-```sql
+
 | QUERY PLAN |
 | :--- |
 | Bitmap Heap Scan on title\_basics  \(cost=128.63..37010.34 rows=733 width=84\) \(actual time=0.690..6.011 rows=2009 loops=1\) |
@@ -21,5 +21,3 @@ WHERE title_type = 'movie' AND start_year = 1950;
 |         Index Cond: \(start\_year = 1950\) |
 | Planning Time: 0.108 ms |
 | Execution Time: 6.096 ms |
-
-```
