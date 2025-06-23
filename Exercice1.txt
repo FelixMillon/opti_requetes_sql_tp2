@@ -1,0 +1,105 @@
+1.1 Première analyse
+
+Query:
+EXPLAIN ANALYSE
+SELECT * FROM title_basics
+WHERE start_year = 2020;
+
+Result:
+"Gather  (cost=1000.00..279056.50 rows=430500 width=85) (actual time=22.844..502.481 rows=440009 loops=1)"
+"  Workers Planned: 2"
+"  Workers Launched: 2"
+"  ->  Parallel Seq Scan on title_basics  (cost=0.00..235006.50 rows=179375 width=85) (actual time=15.004..467.161 rows=146670 loops=3)"
+"        Filter: (start_year = 2020)"
+"        Rows Removed by Filter: 3764950"
+"Planning Time: 0.164 ms"
+"JIT:"
+"  Functions: 6"
+"  Options: Inlining false, Optimization false, Expressions true, Deforming true"
+"  Timing: Generation 2.131 ms (Deform 0.694 ms), Inlining 0.000 ms, Optimization 1.898 ms, Emission 14.671 ms, Total 18.700 ms"
+"Execution Time: 513.449 ms"
+
+1.2 Plan d’exécution
+
+Réponses aux questions:
+1) stratégie PostgreSQL: Parallel Seq Scan on title_basics
+2) 440009 de lignes (réelles pas estimées)
+3) lignes examinées puis rejetées: 3764950
+4) temps d’exécution total: 513.449 ms
+5) Ilya bcp de lignes à traiter: 3764950 + 440009, donc Postgres a décidé de paralléliser les calculs sur 2 workers: « Workers Planned: 2 »
+6) Oui, car Ilya à peu près 4200000 de lignes à traiter
+7) Ce sont des lignes qui ont  « start_year != 2020 »
+
+1.3 Création d’index
+Query:
+CREATE INDEX idx_title_basics_start_year
+ON title_basics(start_year);
+
+Résultat:
+CREATE INDEX
+Query returned successfully in 3 secs 507 msec.
+
+1.4 Analyse après indexation
+La même commande que dans 1.1 a été lancé.
+
+Résultat:
+"Gather  (cost=5795.09..272700.75 rows=430278 width=85) (actual time=78.181..645.768 rows=440009 loops=1)"
+"  Workers Planned: 2"
+"  Workers Launched: 2"
+"  ->  Parallel Bitmap Heap Scan on title_basics  (cost=4795.09..228672.95 rows=179282 width=85) (actual time=39.924..592.859 rows=146670 loops=3)"
+"        Recheck Cond: (start_year = 2020)"
+"        Rows Removed by Index Recheck: 671753"
+"        Heap Blocks: exact=11296 lossy=10173"
+"        ->  Bitmap Index Scan on idx_title_basics_start_year  (cost=0.00..4687.52 rows=430278 width=0) (actual time=73.278..73.278 rows=440009 loops=1)"
+"              Index Cond: (start_year = 2020)"
+"Planning Time: 1.284 ms"
+"JIT:"
+"  Functions: 6"
+"  Options: Inlining false, Optimization false, Expressions true, Deforming true"
+"  Timing: Generation 2.549 ms (Deform 0.809 ms), Inlining 0.000 ms, Optimization 1.382 ms, Emission 9.243 ms, Total 13.174 ms"
+"Execution Time: 657.861 ms"
+
+Réponses aux questions:
+1) Bitmap Index Scan + Parallel Bitmap Heap Scan
+2) 440009
+3) 671753
+4) 657.861 ms
+
+EXPLICATIONS: Le Bitmap Index Scan + Parallel Bitmap Heap Scan effectue double opération: 1) il lit les pointeurs dans index 2) il parcours les pointeurs qui mappent aux lignes de la table. Si’lya une faible spécificité, donc bcp de ligne à récupérer, la durée globale peut être plus longue que simle « Ses scan »
+
+1.5 Impact du nombre de colonnes
+
+Query:
+EXPLAIN ANALYZE
+SELECT tconst, primary_title, start_year FROM title_basics
+WHERE start_year = 2020;
+
+Résultat:
+"Gather  (cost=5795.09..272700.75 rows=430278 width=34) (actual time=65.132..415.278 rows=440009 loops=1)"
+"  Workers Planned: 2"
+"  Workers Launched: 2"
+"  ->  Parallel Bitmap Heap Scan on title_basics  (cost=4795.09..228672.95 rows=179282 width=34) (actual time=24.734..359.431 rows=146670 loops=3)"
+"        Recheck Cond: (start_year = 2020)"
+"        Rows Removed by Index Recheck: 671753"
+"        Heap Blocks: exact=11595 lossy=10474"
+"        ->  Bitmap Index Scan on idx_title_basics_start_year  (cost=0.00..4687.52 rows=430278 width=0) (actual time=54.823..54.823 rows=440009 loops=1)"
+"              Index Cond: (start_year = 2020)"
+"Planning Time: 0.254 ms"
+"JIT:"
+"  Functions: 12"
+"  Options: Inlining false, Optimization false, Expressions true, Deforming true"
+"  Timing: Generation 3.636 ms (Deform 0.745 ms), Inlining 0.000 ms, Optimization 1.253 ms, Emission 13.435 ms, Total 18.323 ms"
+"Execution Time: 426.941 ms"
+
+EXPLICATION: le temps d’execution a diminué car on a width=34 plus petite, moins de données à lire sur le disque (3 vs toutes colonnes) et moins de données à transférer par le réseau.
+
+1.6 Analyse de l'impact global
+1. Postgres utilise toujours Parallel Bitmap Heap Scan
+2. Si diminuer la quantité de colonnes à retourner, oui, le temps d’exécution a améliorer, sinon non à cause de faible sélectivité (nombre de lignes récupérées >10%). Si la sélectivité serait moins 1%, peut être Bitmap Heap Scan serait plus intéressant que Seq Scan
+3. Bitmap Heap Scan - récupération de lignes de table dans le Heap (fichiers à part), Bitmap Index Scan - récupération des pointeurs des lignes de code stocké dans Index (fichiers à part)
+4. On n’a pas d’amélioration à cause de faible sélectivité (nombre de lignes récupérées >10%)
+
+
+
+
+

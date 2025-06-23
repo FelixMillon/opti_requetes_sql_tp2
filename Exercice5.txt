@@ -1,0 +1,17 @@
+5.1 Requête de recherche par identifiant
+
+Query:
+EXPLAIN ANALYZE
+SELECT * FROM title_basics
+WHERE tconst = 'tt0111161';
+
+Résultat:
+"Index Scan using title_basics_pkey on title_basics  (cost=0.43..8.45 rows=1 width=85) (actual time=0.998..1.000 rows=1 loops=1)"
+"  Index Cond: ((tconst)::text = 'tt0111161'::text)"
+"Planning Time: 1.168 ms"
+"Execution Time: 1.054 ms"
+
+Réponses:
+1. Ici il n’y a pas d’algo de jointure, c’est Index Scan sur colonne tconst
+2. C’est un pointeur vers la ligne dans le heap, pusque on a eu recherche précis, il n’avais pas de scan d’Index, mais la récupération directe de la ligne dans Heap.
+3. La recherche est instanée car l’index scan récupère un pointeur précis
